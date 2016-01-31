@@ -17,12 +17,12 @@ create or replace procedure meta.defineType (
             @name as name,
             isnull (p.datatype,'STRING') as datatype,
             p.defaultValue,
-            isnull (p.isNullable,0) as isNullable
+            if p.isNullable is not null then 1 else 0 endif as isNullable
         from dummy outer apply (
             select * from OpenString (value @options) with (
                 datatype MEDIUM,
                 defaultValue STRING,
-                isNullable BOOL
+                isNullable STRING
             ) option (delimited by ',' row delimited by ';') AS p
         ) as p
     ) as m on m.dom = t.dom and m.name = t.name
