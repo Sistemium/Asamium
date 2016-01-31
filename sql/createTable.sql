@@ -1,14 +1,20 @@
 create or replace procedure meta.createTable(
-    @dom TINY,
-    @entity NAME,
+    @ref STRING,
     @isTemporary BOOL default 0,
     @forceDrop BOOL default 0,
-    @name CODE default null
+    @name CODE default null,
+    @dom TINY default null
 ) begin
 
-    declare @sql text;
-    declare @columns text;
-    declare @roles text;
+    declare @sql STRING;
+    declare @columns STRING;
+    declare @roles STRING;
+    declare @entity NAME;
+
+    select
+        coalesce (@dom, regexp_substr (@ref,'.*(?=[\.].*)'), 'meta') as dom,
+        if @dom is null then isnull (regexp_substr (@ref,'(?<=^.*\.).*'), @ref) else @ref endif as name
+    into @dom, @entity;
 
     set @name = isnull (@name,@entity);
 
@@ -59,6 +65,7 @@ create or replace procedure meta.createTable(
         )
         from meta.Role r
         where r.entity = @entity
+            and r.dom = @dom
     );
 
     set @sql =
@@ -82,31 +89,45 @@ create or replace procedure meta.createTable(
     message @sql to client;
     execute immediate @sql;
 
+    set @sql =
+        'create index [XK_' + @dom + '_' + @name + '_cts]' +
+        ' on [' + @dom + '].[' + @name + '] (cts)'
+    ;
+
+    message @sql to client;
+    execute immediate @sql;
+
     -- Foreign keys
     for fks as fk cursor for
         select
             actor,
             name,
             @dom as @owner,
-            deleteAction
+            deleteAction,
+            if not exists (
+                select * from SysTable
+                where creator = user_id (@dom) and table_name = r.actor
+                    and (
+                        (@isTemporary = 0 and table_type = 'BASE')
+                        or (@isTemporary = 1 and table_type = 'GBL TEMP')
+                    )
+            ) then 'index' else 'fk' endif as @indexOrFk
         from meta.Role r
     where dom = @dom and entity = @entity
-        and exists (
-            select * from SysTable
-            where creator = user_id (@dom) and table_name = r.actor
-                and (
-                    (@isTemporary = 0 and table_type = 'BASE')
-                    or (@isTemporary = 1 and table_type = 'GBL TEMP')
-                )
-        )
     do
-
-        set @sql = string (
-            'alter table [', @owner, '].[', @name, ']',
-            ' add foreign key ([', name, ']) references [', @owner, '].[', actor + ']',
-            -- ' on update cascade',
-            if deleteAction is not null then ' on delete ' + deleteAction endif
-        );
+        if @indexOrFk = 'fk' then
+            set @sql = string (
+                'alter table [', @owner, '].[', @name, ']',
+                ' add foreign key ([', name, ']) references [', @owner, '].[', actor + ']',
+                -- ' on update cascade',
+                if deleteAction is not null then ' on delete ' + deleteAction endif
+            );
+        else
+            set @sql = string (
+                'create index [XK_', @dom, '_', @name, '_', name, ']',
+                ' on [', @dom, '].[', @name, '] ([', name, '])'
+            )
+        end if;
         message @sql to client;
         execute immediate @sql;
 
