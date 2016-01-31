@@ -7,12 +7,10 @@ create or replace procedure meta.defineEntity (
 
     declare @entity NAME;
 
-    if @dom is null then
-        select
-            isnull (regexp_substr (@ref,'[^\.]*'), 'meta') as dom,
-            isnull (regexp_substr (@ref,'(?<=^.*\.).*'), @ref) as name
-        into @dom, @entity
-    end if;
+    select
+        coalesce (@dom, regexp_substr (@ref,'.*(?=[\.].*)'), 'meta') as dom,
+        if @dom is null then isnull (regexp_substr (@ref,'(?<=^.*\.).*'), @ref) else @ref endif as name
+    into @dom, @entity;
 
     merge into meta.Entity e using with auto name (
         select
