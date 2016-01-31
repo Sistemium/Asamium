@@ -41,12 +41,13 @@ create or replace procedure meta.createTable(
                 '[', p.name, '] ',
                 t.dataType,
                 if isnull (p.isNullable, t.isNullable) = 0 then
-                    ' not null'
+                    ' not'
                 endif,
+                ' null',
                 if isnull(p.defaultValue,t.defaultValue) is not null then
                     ' default ''' + isnull(p.defaultValue,t.defaultValue) + ''''
                 endif
-            ), ', ' order by p.id desc
+            ), ', '
         )
         from meta.Property p
             join meta.Type t
