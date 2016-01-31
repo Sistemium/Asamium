@@ -48,7 +48,7 @@ create table if not exists meta.Property (
 
     unique (dom,entity,name),
 
-    isNullable BOOL,
+    isNullable BOOL null,
     defaultValue STRING,
 
     foreign key (dom,entity) references meta.Entity (dom,name),
@@ -69,6 +69,7 @@ create table if not exists meta.Role (
     unique (dom,entity,name),
 
     isNullable BOOL,
+    deleteAction TINY,
 
     foreign key (dom,entity) references meta.Entity (dom,name),
     foreign key (dom,actor) references meta.Entity (dom,name),

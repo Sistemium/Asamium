@@ -1,115 +1,115 @@
 create or replace procedure meta.createTable(
     @dom TINY,
     @entity NAME,
-    @isTemporary BOOL default 1,
+    @isTemporary BOOL default 0,
     @forceDrop BOOL default 0,
-    @tableName CODE default null
+    @name CODE default null
 ) begin
 
     declare @sql text;
     declare @columns text;
     declare @roles text;
-    declare @computes text;
 
-    set @tableName = isnull (@tableName,@entity)
+    set @name = isnull (@name,@entity);
 
-    if exists(select *
-                from sys.systable t join sys.sysuserperm u on t.creator = u.user_id
-               where t.table_name = @tableName
-                 and u.user_name = @owner
-                 and t.table_type in ('BASE', 'GBL TEMP')) and @forseDrop = 0 then
-
-        raiserror 55555 'Table %1!.%2! exists! use forseDrop option to regenerate', @owner, @name;
+    if exists(
+        select *
+        from sys.systable t join sys.sysuserperm u on t.creator = u.user_id
+        where t.table_name = @name
+            and u.user_name = @dom
+            -- and t.table_type in ('BASE', 'GBL TEMP')
+    ) and @forceDrop = 0 then
+        raiserror 55555 'Table or view %1!.%2! exists', @dom, @name;
         return;
     else
 
-        set @sql = 'drop table if exists ['+@owner+'].['+@name+']';
+        set @sql = 'drop table if exists ['+@dom+'].['+@name+']';
+        message @sql to client;
         execute immediate @sql;
 
     end if;
 
     set @columns = (
-        select list('['+ch.remoteColumnName(p.name) + '] '+p.type, ', ')
-        from
-            ch.entityProperty ep
-            join ch.property p
-        where ep.entity = @name
+        select list(
+            string(
+                '[', p.name, '] ',
+                t.dataType,
+                if isnull (p.isNullable, t.isNullable) = 0 then
+                    ' not null'
+                endif,
+                if isnull(p.defaultValue,t.defaultValue) is not null then
+                    ' default ''' + isnull(p.defaultValue,t.defaultValue) + ''''
+                endif
+            ), ', ' order by p.id desc
+        )
+        from meta.Property p
+            join meta.Type t
+        where p.entity = @entity and p.dom = @dom
     );
 
     set @roles = (
-        select list('['+er.name+'] IDREF', ', ')
-        from
-            ch.entityRole er
-        where er.entity = @name
-    );
-
-    set @computes = (
-        select list(ec.name + ' ' + ec.type + ' compute (' + ec.expression + ')', ', ')
-        from
-            ch.entityCompute ec
-        where ec.entity = @name
+        select list(
+            string(
+                '[', r.name, '] ',
+                'IDREF',
+                if r.isNullable = 0 then
+                    ' not null'
+                endif
+            ), ', ' order by id desc
+        )
+        from meta.Role r
+        where r.entity = @entity
     );
 
     set @sql =
         'create ' + if @isTemporary = 1 then 'global temporary ' else '' endif
-        + 'table ['+@owner+'].['+@name+'] ('
+        + 'table ['+@dom+'].['+@name+'] ('
         + 'id ID, '
         + if @roles = '' then '' else @roles + ', ' endif
         + if @columns = '' then '' else @columns + ', ' endif
-        + if @computes = '' then '' else @computes + ', ' endif
-        + 'version int, author IDREF, xid GUID, ts TS, cts CTS, primary key(id), unique(xid)'
+        + 'author IDREF, xid GUID, ts TS, cts CTS, primary key(id), unique(xid)'
         +') ' + if @isTemporary = 1 then 'not transactional share by all' else '' endif
     ;
 
-    message 'ch.createTable @sql = ', @sql to client;
+    message @sql to client;
     execute immediate @sql;
 
-    if @isTemporary = 0 then
-        set @sql = 'create index [xk_' + @owner + '_' + @name + '_ts]' +
-                    ' on [' + @owner + '].[' + @name + '](ts)';
+    set @sql =
+        'create index [XK_' + @dom + '_' + @name + '_ts]' +
+        ' on [' + @dom + '].[' + @name + '] (ts)'
+    ;
 
-        message 'ch.createTable @sql = ', @sql to client;
-        execute immediate @sql;
-
-        if exists (select *
-                     from ch.entityProperty
-                    where entity = @name
-                      and property = 'ts') then
-
-            set @sql = 'create index [xk_' + @owner + '_' + @name + '_remoteTs]' +
-                        ' on [' + @owner + '].[' + @name + '](remoteTs)';
-
-            message 'ch.createTable @sql = ', @sql to client;
-            execute immediate @sql;
-
-        end if;
-    end if;
+    message @sql to client;
+    execute immediate @sql;
 
     -- Foreign keys
-    if @isTemporary = 0 then
-        for lloop2 as ccur2 cursor for
-        select distinct
-                entity as c_entity,
-                regexp_substr(actor,'[^.]*$') as c_actor,
-                regexp_substr(actor,'^[^.]*') as c_actor_owner,
-                name as c_name
-            from ch.entityRole er
-        where (entity = @entity
-            or @entity is null
-        ) and exists (
-            select * from systable
-            where creator=user_id(c_actor_owner) and table_name = c_actor
-                and table_type = 'base'
+    for fks as fk cursor for
+        select
+            actor,
+            name,
+            @dom as @owner,
+            deleteAction
+        from meta.Role r
+    where dom = @dom and entity = @entity
+        and exists (
+            select * from SysTable
+            where creator = user_id (@dom) and table_name = r.actor
+                and (
+                    (@isTemporary = 0 and table_type = 'BASE')
+                    or (@isTemporary = 1 and table_type = 'GBL TEMP')
+                )
         )
-        do
+    do
 
-            set @sql = 'alter table [' + @owner + '].[' + c_entity + ']'
-                + ' add foreign key([' + c_name + ']) references [' + c_actor_owner + '].[' + c_actor + ']'
-            ;
-            message 'ch.createTable @sql = ', @sql to client;
-            execute immediate @sql;
+        set @sql = string (
+            'alter table [', @owner, '].[', @name, ']',
+            ' add foreign key ([', name, ']) references [', @owner, '].[', actor + ']',
+            -- ' on update cascade',
+            if deleteAction is not null then ' on delete ' + deleteAction endif
+        );
+        message @sql to client;
+        execute immediate @sql;
 
-        end for;
-    end if;
+    end for;
 
 end;

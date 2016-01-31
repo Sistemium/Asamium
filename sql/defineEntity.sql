@@ -37,12 +37,12 @@ create or replace procedure meta.defineEntity (
             p.name,
             isnull (p.type,p.name) as type,
             p.defaultValue,
-            isnull (p.isNullable,0) as isNullable
+            p.isNullable
         from OpenString (value @properties) with (
                 name STRING,
                 type STRING,
                 defaultValue STRING,
-                isNullable BOOL
+                isNullable int
             ) option (delimited by ',' row delimited by ';') AS p
     ) as m on m.dom = p.dom and m.entity = p.entity and m.name = p.name
     when not matched
@@ -62,11 +62,12 @@ create or replace procedure meta.defineEntity (
             @entity as entity,
             isnull (p.name,util.firstLower(p.actor)) as name,
             p.actor,
-            isnull (p.isNullable,0) as isNullable
+            if isnull (p.[options],'') like '%nullable%' then 1 else 0 endif as isNullable,
+            if p.[options] like '%cascade%' then 'cascade' endif as deleteAction
         from OpenString (value @roles) with (
                 actor STRING,
                 name STRING,
-                isNullable BOOL
+                [options] STRING
             ) option (delimited by ',' row delimited by ';') AS p
     ) as m on m.dom = r.dom and m.entity = r.entity and m.name = r.name
     when not matched
@@ -91,8 +92,12 @@ create or replace procedure meta.defineEntity (
         ) as properties,
         (select list (string(
                 actor,
-                if actor <> name or isNullable = 1 then ',' + name endif,
-                if isNullable = 1 then ',1' endif
+                if actor <> name or isNullable = 1 or deleteAction is not null then ',' + name endif,
+                if isNullable = 1 then ',nullable' endif,
+                if deleteAction is not null then
+                     if isnull (isNullable,0) = 1 then ':' else ',' endif
+                endif,
+                deleteAction
             ),';' order by id)
             from meta.Role
             where dom = e.dom
