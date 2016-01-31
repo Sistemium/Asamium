@@ -41,3 +41,37 @@ meta.defineEntity 'inv.Article',
 meta.createTable 'inv.Vendor';
 meta.createTable 'inv.Article';
 ```
+
+Console output:
+```sql
+create table [inv].[Vendor] (
+    id ID, 
+    
+    [name] STRING not null, 
+    
+    author IDREF, xid GUID, ts TS, cts CTS, 
+    primary key(id), unique(xid)
+)
+
+create index [XK_inv_Vendor_ts] on [inv].[Vendor] (ts)
+create index [XK_inv_Vendor_cts] on [inv].[Vendor] (cts)
+
+create table [inv].[Article] (
+    id ID, 
+    
+    [vendor] IDREF not null,
+    [serialNumber] STRING null, 
+    [isFluid] BOOL null,
+    [price] MONEY not null, 
+    [name] STRING not null, 
+    
+    author IDREF, xid GUID, ts TS, cts CTS, 
+    primary key(id), unique(xid)
+)
+
+create index [XK_inv_Article_ts] on [inv].[Article] (ts)
+create index [XK_inv_Article_cts] on [inv].[Article] (cts)
+
+alter table [inv].[Article] add foreign key ([vendor]) 
+    references [inv].[Vendor]
+```
