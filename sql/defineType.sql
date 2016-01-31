@@ -1,17 +1,15 @@
 create or replace procedure meta.defineType (
     @ref STRING,
-    @properties STRING default '',
+    @options STRING default '',
     @dom TINY default null
 ) begin
 
     declare @name MEDIUM;
 
-    if @dom is null then
-        select
-            isnull (regexp_substr (@ref,'[^\.]*'), 'meta') as dom,
-            isnull (regexp_substr (@ref,'(?<=^.*\.).*'), @ref) as name
-        into @dom, @name
-    end if;
+    select
+        coalesce (@dom, regexp_substr (@ref,'.*(?=[\.].*)'), 'meta') as dom,
+        if @dom is null then isnull (regexp_substr (@ref,'(?<=^.*\.).*'), @ref) else @ref endif as name
+    into @dom, @name;
 
     merge into meta.Type t using with auto name (
         select
@@ -21,7 +19,7 @@ create or replace procedure meta.defineType (
             p.defaultValue,
             isnull (p.isNullable,0) as isNullable
         from dummy outer apply (
-            select * from OpenString (value @properties) with (
+            select * from OpenString (value @options) with (
                 datatype MEDIUM,
                 defaultValue STRING,
                 isNullable BOOL
