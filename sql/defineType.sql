@@ -1,10 +1,17 @@
 create or replace procedure meta.defineType (
     @ref STRING,
-    @options STRING default '',
+    @options STRING default null,
     @dom TINY default null
 ) begin
 
     declare @name MEDIUM;
+
+    if @options is null then
+        select
+            regexp_substr (@ref,'^[^:]*'),
+            isnull (regexp_substr (@ref,'(?<=^.*:).*'), '')
+        into @ref, @options;
+    end if;
 
     select
         coalesce (@dom, regexp_substr (@ref,'.*(?=[\.].*)'), 'meta') as dom,
