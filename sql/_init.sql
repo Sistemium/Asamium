@@ -49,3 +49,4 @@ create Domain NAME as varchar (128)
 
 create Domain STRING as text;
 
+create Domain PRICE as decimal (12,2);
