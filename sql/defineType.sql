@@ -14,7 +14,12 @@ create or replace procedure meta.defineType (
     end if;
 
     select
-        coalesce (@dom, regexp_substr (@ref,'.*(?=[\.].*)'), 'meta') as dom,
+        coalesce (
+            @dom,
+            regexp_substr (@ref,'.*(?=[\.].*)'),
+            util.getUserOption('asamium.default.domain'),
+            'meta'
+        ) as dom,
         if @dom is null then isnull (regexp_substr (@ref,'(?<=^.*\.).*'), @ref) else @ref endif as name
     into @dom, @name;
 

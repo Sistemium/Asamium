@@ -12,7 +12,12 @@ create or replace procedure meta.createTable(
     declare @entity NAME;
 
     select
-        coalesce (@dom, regexp_substr (@ref,'.*(?=[\.].*)'), 'meta') as dom,
+        coalesce (
+            @dom,
+            regexp_substr (@ref,'.*(?=[\.].*)'),
+            util.getUserOption('asamium.default.domain'),
+            'meta'
+        ) as dom,
         if @dom is null then isnull (regexp_substr (@ref,'(?<=^.*\.).*'), @ref) else @ref endif as name
     into @dom, @entity;
 
@@ -69,15 +74,21 @@ create or replace procedure meta.createTable(
             and r.dom = @dom
     );
 
-    set @sql =
-        'create ' + if @isTemporary = 1 then 'global temporary ' else '' endif
-        + 'table ['+@dom+'].['+@name+'] ('
-        + 'id ID, '
-        + if @roles = '' then '' else @roles + ', ' endif
-        + if @columns = '' then '' else @columns + ', ' endif
-        + 'author IDREF, xid GUID, ts TS, cts CTS, primary key(id), unique(xid)'
-        +') ' + if @isTemporary = 1 then 'not transactional share by all' else '' endif
-    ;
+    set @sql = string (
+        'create ',
+        if @isTemporary = 1 then 'global temporary ' else '' endif,
+        ' table ['+@dom+'].['+@name+'] (',
+        'id ID, ',
+        if @roles = '' then '' else @roles + ', ' endif,
+        if @columns = '' then '' else @columns + ', ' endif,
+        'author IDREF, xid GUID, ts TS, cts CTS, primary key(id), unique(xid)',
+        ') ',
+        if @isTemporary = 1 then
+            'not transactional share by all'
+        else
+            (select 'in [' + @dom + ']' from sysfile where dbspace_name = @dom)
+        endif
+    );
 
     message @sql to client;
     execute immediate @sql;

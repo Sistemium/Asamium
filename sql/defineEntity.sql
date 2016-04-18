@@ -8,9 +8,16 @@ create or replace procedure meta.defineEntity (
     declare @entity NAME;
 
     select
-        coalesce (@dom, regexp_substr (@ref,'.*(?=[\.].*)'), 'meta') as dom,
+        coalesce (
+            @dom,
+            regexp_substr (@ref,'.*(?=[\.].*)'),
+            util.getUserOption('asamium.default.domain'),
+            'meta'
+        ) as dom,
         if @dom is null then isnull (regexp_substr (@ref,'(?<=^.*\.).*'), @ref) else @ref endif as name
     into @dom, @entity;
+
+    message @dom, '.', @entity to client;
 
     merge into meta.Entity e using with auto name (
         select
@@ -35,12 +42,16 @@ create or replace procedure meta.defineEntity (
             p.name,
             isnull (p.type,p.name) as type,
             p.defaultValue,
-            p.isNullable
+            case
+                when p.isNullable is null then null
+                when p.isNullable = '1' or p.isNullable = 'nullable' then 1
+                when p.isNullable = '0' or p.isNullable = 'notnullable' then 0
+            end as isNullable
         from OpenString (value @properties) with (
                 name STRING,
                 type STRING,
                 defaultValue STRING,
-                isNullable int
+                isNullable STRING
             ) option (delimited by ',' row delimited by ';') AS p
     ) as m on m.dom = p.dom and m.entity = p.entity and m.name = p.name
     when not matched
