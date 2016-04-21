@@ -7,7 +7,7 @@ create or replace procedure meta.createDbspace (
     if not exists (select * from sysdbspace where dbspace_name = @dom) then
         set @sql = string (
             'create dbspace ', @dom,
-            ' as @dom', '.dbs'
+            ' as ''', @dom, '.dbs'''
         );
         execute immediate with result set off @sql;
     end if
