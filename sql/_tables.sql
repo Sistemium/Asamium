@@ -1,4 +1,4 @@
-revoke connect from meta;
+-- revoke connect from meta;
 
 grant connect to meta;
 grant dba to meta;
