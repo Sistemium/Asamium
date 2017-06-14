@@ -10,6 +10,7 @@ create or replace procedure meta.createTable(
     declare @columns STRING;
     declare @roles STRING;
     declare @entity NAME;
+    declare @commonColumns STRING;
 
     select
         coalesce (
@@ -39,6 +40,10 @@ create or replace procedure meta.createTable(
         execute immediate @sql;
 
     end if;
+
+    set @commonColumns = util.getUserOption('asamium.' + @dom + '.commonColumns');
+
+    set @commonColumns = nullIf(@commonColumns, '');
 
     set @columns = (
         select list(
@@ -81,6 +86,7 @@ create or replace procedure meta.createTable(
         'id ID, ',
         if @roles = '' then '' else @roles + ', ' endif,
         if @columns = '' then '' else @columns + ', ' endif,
+        if @commonColumns is not null then @commonColumns + ', ' endif,
         'author IDREF, xid GUID, ts TS, cts CTS, primary key(id), unique(xid)',
         ') ',
         if @isTemporary = 1 then
