@@ -1,0 +1,19 @@
+{
+  "name": "asamium",
+  "version": "1.0.0",
+  "description": "SQL Anywhere domain metadata repository management",
+  "main": "index.js",
+  "scripts": {
+    "concat": "cat sql/*.sql > dist/init.sql"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Sistemium/Asamium.git"
+  },
+  "author": "Alexander Levin",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Sistemium/Asamium/issues"
+  },
+  "homepage": "https://github.com/Sistemium/Asamium#readme"
+}
