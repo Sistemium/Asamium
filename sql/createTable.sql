@@ -3,7 +3,8 @@ create or replace procedure meta.createTable(
     @isTemporary BOOL default 0,
     @forceDrop BOOL default 0,
     @name CODE default null,
-    @dom TINY default null
+    @dom TINY default null,
+    @dbspace CODE default null
 ) begin
 
     declare @sql STRING;
@@ -11,6 +12,10 @@ create or replace procedure meta.createTable(
     declare @roles STRING;
     declare @entity NAME;
     declare @commonColumns STRING;
+
+    if @dbspace is null then
+        set @dbspace = @dom;
+    end if;
 
     select
         coalesce (
@@ -92,7 +97,7 @@ create or replace procedure meta.createTable(
         if @isTemporary = 1 then
             'not transactional share by all'
         else
-            (select 'in [' + @dom + ']' from sysfile where dbspace_name = @dom)
+            (select 'in [' + dbspace_name + ']' from sysfile where dbspace_name = @dbspace)
         endif
     );
 
