@@ -216,10 +216,6 @@ create or replace procedure meta.createTable(
     declare @entity NAME;
     declare @commonColumns STRING;
 
-    if @dbspace is null then
-        set @dbspace = @dom;
-    end if;
-
     select
         coalesce (
             @dom,
@@ -231,6 +227,10 @@ create or replace procedure meta.createTable(
     into @dom, @entity;
 
     set @name = isnull (@name,@entity);
+
+    if @dbspace is null then
+        set @dbspace = @dom;
+    end if;
 
     if exists(
         select *
